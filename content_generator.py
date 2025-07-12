@@ -1,9 +1,6 @@
-
-
 import pandas as pd
 from datetime import datetime
 from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
-import json
 import os
 
 # あなたの楽天アフィリエイトIDを設定してください
@@ -43,7 +40,7 @@ def convert_to_affiliate_link(original_url):
 def generate_blog_post():
     """
     rakuten_campaigns.csvからデータを読み込み、
-    Markdown形式のブログ記事を生成する。
+    Jekyll形式のMarkdownブログ記事を生成する。
     """
     try:
         df = pd.read_csv('rakuten_campaigns.csv')
@@ -53,14 +50,23 @@ def generate_blog_post():
         return
 
     # 今日の日付を取得
-    today_str = datetime.now().strftime('%Y年%m月%d日')
-    date_for_filename = datetime.now().strftime('%Y-%m-%d')
+    today = datetime.now()
+    today_str = today.strftime('%Y年%m月%d日')
+    date_for_filename = today.strftime('%Y-%m-%d')
     
-    # 個別記事のMarkdownコンテンツを生成
-    md_content = []
+    # 記事のタイトル
     article_title = f"【{today_str}更新】楽天経済圏 今週のお得キャンペーン総まとめ！"
-    md_content.append(f"# {article_title}")
+
+    # Jekyll Front Matter
+    md_content = []
+    md_content.append("---")
+    md_content.append(f"layout: post")
+    md_content.append(f"title: \"{article_title}\"")
+    md_content.append(f"date: {today.strftime('%Y-%m-%d %H:%M:%S %z')}") # ISO 8601形式
+    md_content.append("categories: [rakuten, campaign, point]") # カテゴリは適宜調整
+    md_content.append("---")
     md_content.append("\n")
+
     md_content.append("こんにちは！AIアシスタントです。")
     md_content.append(f"今週も楽天経済圏で開催されているお得なキャンペーン情報を集めてきました。（{today_str}時点）")
     md_content.append("エントリーが必要なものも多いので、お見逃しなく！")
@@ -74,7 +80,9 @@ def generate_blog_post():
         if pd.notna(row['title']) and pd.notna(row['url']):
             title = str(row['title']).strip()
             original_url = str(row['url']).strip()
+            
             affiliate_url = convert_to_affiliate_link(original_url)
+
             md_content.append(f"- [{title}]({affiliate_url})")
 
     md_content.append("\n")
@@ -88,68 +96,19 @@ def generate_blog_post():
     md_content.append("> ※本記事はAIによって自動生成されています。最新の情報は各キャンペーンの公式サイトをご確認ください。")
     md_content.append("> ※本記事にはアフィリエイトリンクが含まれています。")
 
-    # 個別記事のファイル名
-    article_filename = f"{date_for_filename}-rakuten-summary.md"
+    # 個別記事のファイル名 (Jekyllの命名規則に従う)
+    # ファイル名に時刻を含めることで、同じ日に複数回実行してもユニークなファイル名になる
+    article_filename = f"_posts/{date_for_filename}-{today.strftime('%H%M%S')}-rakuten-summary.md"
     
     # 個別記事のファイルへの書き込み
     try:
+        # _posts ディレクトリが存在しない場合は作成
+        os.makedirs(os.path.dirname(article_filename), exist_ok=True)
         with open(article_filename, 'w', encoding='utf-8') as f:
             f.write('\n'.join(md_content))
-        print(f"Successfully generated individual blog post: {article_filename}")
+        print(f"Successfully generated Jekyll blog post: {article_filename}")
     except IOError as e:
         print(f"Error writing to file {article_filename}: {e}")
 
-    # 記事リストを更新し、index.mdを生成
-    update_index_page(article_filename, article_title)
-
-def update_index_page(new_article_filename, new_article_title):
-    """
-    新しい記事の情報をarticles.jsonに保存し、index.mdを更新する。
-    """
-    articles_file = 'articles.json'
-    articles = []
-
-    if os.path.exists(articles_file):
-        with open(articles_file, 'r', encoding='utf-8') as f:
-            articles = json.load(f)
-
-    # 新しい記事が既にリストにないか確認して追加
-    new_entry = {'filename': new_article_filename, 'title': new_article_title}
-    if new_entry not in articles:
-        articles.insert(0, new_entry) # 最新の記事をリストの先頭に追加
-
-    # articles.jsonを保存
-    with open(articles_file, 'w', encoding='utf-8') as f:
-        json.dump(articles, f, ensure_ascii=False, indent=4)
-
-    # index.mdのコンテンツを生成
-    index_content = []
-    index_content.append("# 楽天経済圏キャンペーン情報ブログ")
-    index_content.append("\n")
-    index_content.append("楽天経済圏のお得なキャンペーン情報を毎日お届けします！")
-    index_content.append("\n")
-    index_content.append("---")
-    index_content.append("\n")
-    index_content.append("## 最新記事")
-    index_content.append("\n")
-
-    for article in articles:
-        index_content.append(f"- [{article['title']}]({article['filename']})")
-    
-    index_content.append("\n")
-    index_content.append("---")
-    index_content.append("\n")
-    index_content.append("> ※本ブログはAIによって自動生成されています。最新の情報は各キャンペーンの公式サイトをご確認ください。")
-    index_content.append("> ※本ブログにはアフィリエイトリンクが含まれています。")
-
-    # index.mdを保存
-    try:
-        with open('index.md', 'w', encoding='utf-8') as f:
-            f.write('\n'.join(index_content))
-        print("Successfully updated index.md")
-    except IOError as e:
-        print(f"Error writing to index.md: {e}")
-
 if __name__ == '__main__':
     generate_blog_post()
-
